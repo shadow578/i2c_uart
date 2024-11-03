@@ -243,10 +243,6 @@ void __inline i2c_put_bytes(uint8_t *bytes, uint8_t length)
 		while (R_SCL)
 			; // Wait for SCL=0
 	}
-	
-	i2c_sda_high();
-	while (R_SCL)
-		; // Wait for SCL=0
 
 	wdt_reset();
 	irq_en();
