@@ -10,7 +10,14 @@
 #include <avr/wdt.h>
 #include "uart.h"
 
+// on arduino nano test:
+// - SDA on D12
+// - SCL on D11
+// - LED on D13 (LED_BUILTIN)
+
 #define __inline 
+#define IS_ATTINY13 (defined(__AVR_ATtiny13__) || defined (__AVR_ATtiny13A__))
+
 
 #define I2C_SLAVE_ADDR	(0x22 << 1)
 
@@ -22,14 +29,19 @@
 #define R_SDA			(PINB & SDA)
 #define R_BOTH			(PINB & (SDA|SCL))
 
-#define LED				_BV(PB2)
+#define LED				_BV(PB5)
 #define LED_L()			PORTB &= ~LED;
 #define LED_H()			PORTB |= LED;
 
 #define BUS_FREE_TIME	5 // in usec
 
 #define nop() do { __asm__ __volatile__ ("nop"); } while (0)
-#define irq_en() do { GIFR |= _BV(PCIF); nop(); sei(); } while (0)
+
+#if IS_ATTINY13
+	#define irq_en() do { GIFR |= _BV(PCIF); nop(); sei(); } while (0)
+#else
+	#define irq_en() do { PCIFR |= _BV(PCIF0); nop(); sei(); } while (0)
+#endif
 
 enum {
 	SEQ_BUS_FREE = 0,
@@ -198,17 +210,21 @@ int main(void)
 {
 	uint8_t register byte;
 
-	PCMSK = MASK_SDA;
-	GIMSK |= _BV(PCIE);
-	GIFR |= _BV(PCIF);
+	#if IS_ATTINY13
+		PCMSK = MASK_SDA;
+		GIMSK |= _BV(PCIE);
+		GIFR |= _BV(PCIF);
+	#else
+		PCMSK0 = MASK_SDA;
+		PCICR |= _BV(PCIE0);
+		PCIFR |= _BV(PCIF0);
+	#endif
 	DDRB |= LED;
 
 	uart_setup(); // Setup UART Tx pin as out
 
+#if IS_ATTINY13
 	wdt_enable(WDTO_15MS); // Set prescaler to 15ms
-#ifdef _AVR_IOTN85_H_
-	WDTCR |= _BV(WDIE); // Enable WD irq
-#else
 	WDTCR |= _BV(WDTIE); // Enable WD irq
 #endif
 	cli();
