@@ -82,6 +82,7 @@ void __inline i2c_clk_free(void)
 	nop();				// for sync
 }
 
+// sda go high / idle
 void __inline i2c_sda_high()
 {
 	DDRB &= ~SDA; // SDA as in
@@ -89,6 +90,7 @@ void __inline i2c_sda_high()
 	nop(); 				// for sync
 }
 
+// sda drive low
 void __inline i2c_sda_low()
 {
 	DDRB |= SDA;	 // SDA as out
@@ -107,6 +109,7 @@ void __inline i2c_ack(void)
 	i2c_sda_high();
 }
 
+// returns R/W bit: 0 = write, 1 = read
 uint8_t __inline i2c_detect_addr(void)
 {
 	uint8_t register bshift = 7;
@@ -201,41 +204,49 @@ uint8_t __inline i2c_get_byte(void)
 	return d;
 }
 
-void __inline i2c_put_byte(uint8_t byte)
+void __inline i2c_put_bytes(uint8_t *bytes, uint8_t length)
 {
-	uint8_t bshift = 7;
-	uint8_t i;
+	uint8_t i, j;
 
 	cli();
-	for (i = 0; i < 8; i++)
+	for (j = 0; j < length; j++)
 	{
+		uint8_t byte = bytes[j];
+		uint8_t bshift = 7;
+
+		for (i = 0; i < 8; i++)
+		{
+			while (R_SCL)
+				; // Wait for SCL=0
+
+			if (byte & (1 << bshift))
+			{
+				i2c_sda_high();
+			}
+			else
+			{
+				i2c_sda_low();
+			}
+			bshift--;
+
+			while (!R_SCL)
+				; // Wait for SCL=1
+		}
 
 		while (R_SCL)
 			; // Wait for SCL=0
 
-
-		if (byte & (1 << bshift))
-		{
-			i2c_sda_high();
-		}
-		else
-		{
-			i2c_sda_low();
-		}
-
+		i2c_sda_high();
+		
 		while (!R_SCL)
 			; // Wait for SCL=1
-
-		bshift--;
+		while (R_SCL)
+			; // Wait for SCL=0
 	}
-
+	
 	i2c_sda_high();
-
-  while (R_SCL); // Wait for SCL=0
-  if (R_SDA) // Check if ACK received
-  {
-      // Handle NACK
-  }
+	while (R_SCL)
+		; // Wait for SCL=0
 
 	wdt_reset();
 	irq_en();
@@ -368,7 +379,9 @@ int main(void)
 			else
 			{
 				LED_H();
-				i2c_put_byte(0x55);
+
+				uint8_t bytes[] = {0x55, 0x66, 0x77, 0xaa};
+				i2c_put_bytes(bytes, 4);
 			}
 		}
 	}

@@ -81,7 +81,7 @@ void loop()
         Serial.println(rc);
 
 
-        rc = Wire.requestFrom(I2C_ADDRESS, static_cast<uint8_t>(1));
+        rc = Wire.requestFrom(I2C_ADDRESS, static_cast<uint8_t>(4));
         Serial.print("rc=");
         Serial.println(rc);
 
