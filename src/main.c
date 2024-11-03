@@ -10,6 +10,8 @@
 #include <avr/wdt.h>
 #include "uart.h"
 
+#define __inline 
+
 #define I2C_SLAVE_ADDR	(0x22 << 1)
 
 #define SCL 			_BV(PB3)
