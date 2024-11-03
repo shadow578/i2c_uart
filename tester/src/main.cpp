@@ -56,7 +56,8 @@ void setup()
     Serial.begin(115200);
 
     Wire.begin();
-    // Wire.setClock(1000); // slow down i2c clock to 1 kHz
+    Wire.setClock(1000); // slow down i2c clock to 1 kHz
+    //Wire.setTimeout(1000);
 }
 
 void loop()
@@ -78,6 +79,17 @@ void loop()
         rc = Wire.endTransmission();
         Serial.print("rc=");
         Serial.println(rc);
+
+
+        rc = Wire.requestFrom(I2C_ADDRESS, static_cast<uint8_t>(1));
+        Serial.print("rc=");
+        Serial.println(rc);
+
+        while (Wire.available())
+        {
+            Serial.print("RX: 0x");
+            Serial.println(Wire.read(), HEX);
+        }
     }
 
     delay(5000);
