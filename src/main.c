@@ -152,7 +152,7 @@ void i2c_wait_for_start(void)
 {
 	uint8_t register cnt = BUS_FREE_TIME;
 
-	LED_H();
+	//LED_H();
 	DDRB &= ~(SCL|SDA); // SDA|SCL in
 	PORTB &= ~(SCL|SDA); // Hiz
 
@@ -193,10 +193,10 @@ ISR(PCINT0_vect)
 	if (pin & SCL) {
 		if ((pin & SDA) == 0) {
 			status = SEQ_START;
-			LED_L();
+			//LED_L();
 		} else {
 			status = SEQ_STOP;
-			LED_H();
+			//LED_H();
 		}
 	}
 }
@@ -219,7 +219,7 @@ int main(void)
 		PCICR |= _BV(PCIE0);
 		PCIFR |= _BV(PCIF0);
 	#endif
-	DDRB |= LED;
+	//DDRB |= LED;
 
 	uart_setup(); // Setup UART Tx pin as out
 
@@ -241,7 +241,13 @@ int main(void)
 					break;
 				} else {
 					i2c_clk_keep();
-					uart_putc(byte);
+
+					if (byte == 0xaa) {
+						LED_L();
+					} else if (byte == 0x55) {
+						LED_H();
+					}
+
 					i2c_clk_free();
 				}
 			}
