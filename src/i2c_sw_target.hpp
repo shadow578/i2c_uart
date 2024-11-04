@@ -25,7 +25,7 @@
 #endif
 
 #if !defined(I2C_BUFFER_SIZE)
-#define I2C_BUFFER_SIZE 32
+#define I2C_BUFFER_SIZE 4
 #endif
 
 #define __always_inline __attribute__((always_inline)) inline
@@ -87,11 +87,13 @@ namespace i2c_sw_target_internal
     __always_inline void sda_high() // = idle
     {
       DDRB &= ~SDA; // sda in
+      nop();
     }
     __always_inline void sda_low()
     {
       DDRB |= SDA;   // SDA out
       PORTB &= ~SDA; // SDA low
+      nop();
     }
 
     __always_inline void scl_high() // = idle
@@ -295,10 +297,7 @@ namespace i2c_sw_target_internal
      */
     __always_inline void wait_for_start()
     {
-      // TODO: double-check this function, esp. inlined READ_BOTH usage
-      // set SDA and SCL idle
-      sda_high();
-      scl_high();
+      DDRB &= ~(SDA | SCL);  // SDA and SCL in
       PORTB &= ~(SDA | SCL); // HiZ
 
       i2c_wdt_reset();
