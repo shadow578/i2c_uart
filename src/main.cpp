@@ -36,8 +36,8 @@ void on_i2c_event(const bool read, uint8_t *data, uint8_t &len)
 		len = int_data_len;
 
 #if defined(__AVR_ATmega328P__)
-		Serial.print("[R] len=");
-		Serial.println(int_data_len);
+		//Serial.print("[R] len=");
+		//Serial.println(int_data_len);
 #endif
 
 		led_high();
@@ -45,12 +45,19 @@ void on_i2c_event(const bool read, uint8_t *data, uint8_t &len)
 	else
 	{
 		// write controller data to internal
-		memcpy(data, int_data, len);
+		memcpy(int_data, data, len);
 		int_data_len = len;
 
 #if defined(__AVR_ATmega328P__)
-		Serial.print("[W] len=");
-		Serial.println(int_data_len);
+		//Serial.print("[W] len=");
+		//Serial.println(int_data_len);
+    //
+		//for (uint8_t i = 0; i < len; i++)
+		//{
+		//	Serial.print(data[i], HEX);
+		//	Serial.print(" ");
+		//}
+		//Serial.println();
 #endif
 
 		led_low();
@@ -64,9 +71,11 @@ int main(void)
 	Serial.println("ready!");
 #endif
 
+	sei();
+
 	DDRB |= LED;
 
-	wdt_enable(WDTO_15MS); // enable wdt reset in 15 ms
+	//wdt_enable(WDTO_15MS); // enable wdt reset in 15 ms
 
 	WireTarget.listen();
 }

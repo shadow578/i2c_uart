@@ -1,7 +1,7 @@
 /**
  * basic software i2c target implementation for the attiny13 and similar avr microcontrollers.
  * uses no hardware i2c peripheral or interrupts, just bit-banging on two GPIO pins.
- * 
+ *
  * memory usage:
  * - RAM: 1 + I2C_BUFFER_SIZE bytes
  * - Flash: ~600 bytes
@@ -70,7 +70,6 @@ __weak void i2c_wdt_reset() { wdt_reset(); }
 
 namespace i2c_sw_target_internal
 {
-
   constexpr uint8_t SDA = _BV(I2C_SDA_PIN);
   constexpr uint8_t SCL = _BV(I2C_SCL_PIN);
 
@@ -90,7 +89,7 @@ namespace i2c_sw_target_internal
     SEQ_Status status = BusFree;
 
   private:
-    __always_inline void nop() { asm volatile("nop"); }
+    __always_inline void nop() { __asm__ __volatile__("nop"); }
 
     __always_inline bool read_sda() { return PINB & SDA; }
     __always_inline bool read_scl() { return PINB & SCL; }
@@ -98,6 +97,7 @@ namespace i2c_sw_target_internal
     __always_inline void sda_high() // = idle
     {
       DDRB &= ~SDA; // sda in
+      PORTB |= SDA; // sda pull-up
       nop();
     }
     __always_inline void sda_low()
@@ -110,21 +110,13 @@ namespace i2c_sw_target_internal
     __always_inline void scl_high() // = idle
     {
       DDRB &= ~SCL; // scl in
+      PORTB |= SCL; // scl pull-up
+      nop();
     }
     __always_inline void scl_low()
     {
       DDRB |= SCL;   // SCL out
       PORTB &= ~SCL; // SCL low
-    }
-
-    __always_inline void clk_keep()
-    {
-      scl_low();
-      nop();
-    }
-    __always_inline void clk_free()
-    {
-      DDRB &= ~SCL; // SCL in
       nop();
     }
 
@@ -147,10 +139,10 @@ namespace i2c_sw_target_internal
      * @return the byte read from the bus. only valid if status is not Stop
      * @note updates status to Stop if stop condition is detected
      */
-    __always_inline uint8_t _get_byte()
+    uint8_t _get_byte()
     {
       uint8_t byte = 0;
-      for (uint8_t register i = 0; i < 8; i++)
+      for (uint8_t register s = 7;; s--)
       {
         while (!read_scl()) // wait until SCL=1
           ;
@@ -158,7 +150,7 @@ namespace i2c_sw_target_internal
         // get SDA
         if (read_sda())
         {
-          byte |= (1 << (7 - i));
+          byte |= (1 << s);
           while (read_scl()) // wait until SCL=0
             ;
         }
@@ -181,6 +173,9 @@ namespace i2c_sw_target_internal
             }
           }
         }
+
+        if (s == 0)
+          break;
       }
 
       return byte;
@@ -198,14 +193,9 @@ namespace i2c_sw_target_internal
     __always_inline bool detect_address()
     {
       uint8_t addr = _get_byte();
-      if (status == Stop)
-      {
-        // STOP detected during address read, stop processing
-        return false;
-      }
 
       // get R/W bit and normalize address
-      bool rw = addr & 1;
+      const bool rw = addr & 1;
       addr >>= 1;
 
       // check address match
@@ -233,7 +223,6 @@ namespace i2c_sw_target_internal
      */
     __always_inline uint8_t get_bytes(uint8_t *bytes, const uint8_t len)
     {
-      cli();
       for (uint8_t i = 0; i < len; i++)
       {
         const uint8_t b = _get_byte();
@@ -258,12 +247,12 @@ namespace i2c_sw_target_internal
      */
     __always_inline void _put_byte(const uint8_t byte)
     {
-      for (uint8_t register i = 0; i < 8; i++)
+      for (uint8_t register s = 7;; s--)
       {
         while (read_scl()) // wait until SCL=0
           ;
 
-        if (byte & (1 << (7 - i)))
+        if (byte & (1 << s))
         {
           sda_high();
         }
@@ -274,6 +263,9 @@ namespace i2c_sw_target_internal
 
         while (!read_scl()) // wait until SCL=1
           ;
+
+        if (s == 0)
+          break;
       }
 
       while (read_scl()) // wait until SCL=0
@@ -294,7 +286,6 @@ namespace i2c_sw_target_internal
      */
     __always_inline void put_bytes(uint8_t *bytes, const uint8_t len)
     {
-      cli();
       for (uint8_t i = 0; i < len; i++)
       {
         _put_byte(bytes[i]);
@@ -308,8 +299,8 @@ namespace i2c_sw_target_internal
      */
     __always_inline void wait_for_start()
     {
-      DDRB &= ~(SDA | SCL);  // SDA and SCL in
-      PORTB &= ~(SDA | SCL); // HiZ
+      DDRB &= ~(SDA | SCL); // SDA and SCL in
+      PORTB |= (SDA | SCL); // pull-up enable
 
       i2c_wdt_reset();
 
@@ -385,10 +376,10 @@ namespace i2c_sw_target_internal
           if (is_read)
           {
             // read from target to controller
-            clk_keep();
+            scl_low();
             uint8_t len = sizeof(buffer);
             on_i2c_event(/*is_read*/ true, buffer, len);
-            clk_free();
+            scl_high();
 
             if (len > 0)
             {
@@ -401,9 +392,9 @@ namespace i2c_sw_target_internal
             uint8_t len = get_bytes(buffer, sizeof(buffer));
             if (len > 0)
             {
-              clk_keep();
+              scl_low();
               on_i2c_event(/*is_read*/ false, buffer, len);
-              clk_free();
+              scl_high();
             }
           }
         }

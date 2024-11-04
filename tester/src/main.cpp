@@ -56,8 +56,6 @@ void setup()
     Serial.begin(115200);
 
     Wire.begin();
-    Wire.setClock(1000); // slow down i2c clock to 1 kHz
-    // Wire.setTimeout(1000);
 }
 
 void test_readback(uint8_t *bytes, uint8_t len)
