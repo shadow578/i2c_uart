@@ -291,6 +291,21 @@ void i2c_wait_for_start(void)
 	while (status != SEQ_START)
 	{
 		wdt_reset();
+
+		uint8_t register pin = PINB;
+		if (pin & SCL)
+		{
+			if ((pin & SDA) == 0)
+			{
+				status = SEQ_START;
+				// LED_L();
+			}
+			else
+			{
+				status = SEQ_STOP;
+				// LED_H();
+			}
+		}
 	}
 	cli();
 
@@ -298,28 +313,6 @@ void i2c_wait_for_start(void)
 	while (R_BOTH)
 	{
 		wdt_reset();
-	}
-}
-
-ISR(PCINT0_vect)
-{
-	uint8_t register pin;
-
-	wdt_reset();
-
-	pin = PINB;
-	if (pin & SCL)
-	{
-		if ((pin & SDA) == 0)
-		{
-			status = SEQ_START;
-			// LED_L();
-		}
-		else
-		{
-			status = SEQ_STOP;
-			// LED_H();
-		}
 	}
 }
 
@@ -336,15 +329,6 @@ int main(void)
 	Serial.begin(115200);
 	Serial.println("ready!");
 
-#if IS_ATTINY13
-	PCMSK = MASK_SDA;
-	GIMSK |= _BV(PCIE);
-	GIFR |= _BV(PCIF);
-#else
-	PCMSK0 = MASK_SDA;
-	PCICR |= _BV(PCIE0);
-	PCIFR |= _BV(PCIF0);
-#endif
 	// DDRB |= LED;
 
 	// uart_setup(); // Setup UART Tx pin as out
