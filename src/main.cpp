@@ -3,6 +3,8 @@
  * I2C ti UART converter
  */
 
+#include <Arduino.h>
+
 #include <stdint.h>
 #include <util/delay.h>
 #include <avr/io.h>
@@ -87,7 +89,7 @@ void __inline i2c_sda_high()
 {
 	DDRB &= ~SDA; // SDA as in
 	PORTB |= SDA; // SDA pull-up
-	nop(); 				// for sync
+	nop();				// for sync
 }
 
 // sda drive low
@@ -104,7 +106,7 @@ void __inline i2c_ack(void)
 	while (!R_SCL)
 		; // Wait for SCL=1
 	while (R_SCL)
-		;						// Wait for SCL=0
+		; // Wait for SCL=0
 
 	i2c_sda_high();
 }
@@ -162,46 +164,59 @@ uint8_t __inline i2c_detect_addr(void)
 	return rw;
 }
 
-uint8_t __inline i2c_get_byte(void)
+uint8_t __inline i2c_get_bytes(uint8_t *bytes, uint8_t len)
 {
-	uint8_t bshift = 7;
-	uint8_t d = 0;
-	uint8_t i;
+	uint8_t i, j;
 
 	cli();
-	for (i = 0; i < 8; i++)
+	for (j = 0; j < len; j++)
 	{
-		while (!R_SCL)
-			; // Wait for SCL=1
-		// Get SDA state
-		if (R_SDA)
+		uint8_t bshift = 7;
+		uint8_t d = 0;
+
+		for (i = 0; i < 8; i++)
 		{
-			d |= 1 << bshift;
-			while (R_SCL)
-				; // Wait for SCL=0
-		}
-		else
-		{
-			while (1)
+			while (!R_SCL)
+				; // Wait for SCL=1
+
+			// Get SDA state
+			if (R_SDA)
 			{
-				uint8_t register x = PINB;
-				if ((x & SCL) == 0)
-					break;
-				if (x & SDA)
+				d |= 1 << bshift;
+				while (R_SCL)
+					; // Wait for SCL=0
+			}
+			else
+			{
+				while (1)
 				{
-					status = SEQ_STOP;
-					return 0;
+					uint8_t register x = PINB;
+					if ((x & SCL) == 0)
+						break;
+
+					if (x & SDA)
+					{
+						Serial.print("STOP i=");
+						Serial.print(i);
+						Serial.print(" j=");
+						Serial.println(j);
+
+						status = SEQ_STOP;
+						return j;
+					}
 				}
 			}
+
+			bshift--;
 		}
-		bshift--;
+
+		bytes[j] = d;
+		i2c_ack();
+		wdt_reset();
 	}
 
-	i2c_ack();
-	wdt_reset();
 	irq_en();
-
-	return d;
+	return len;
 }
 
 void __inline i2c_put_bytes(uint8_t *bytes, uint8_t length)
@@ -237,7 +252,7 @@ void __inline i2c_put_bytes(uint8_t *bytes, uint8_t length)
 			; // Wait for SCL=0
 
 		i2c_sda_high();
-		
+
 		while (!R_SCL)
 			; // Wait for SCL=1
 		while (R_SCL)
@@ -310,12 +325,16 @@ ISR(PCINT0_vect)
 
 ISR(WDT_vect)
 {
-	uart_puts("\nI2C-UART (WDT reset)\n");
+	// uart_puts("\nI2C-UART (WDT reset)\n");
 }
+
+uint8_t readback_bytes[4];
+uint8_t readback_bytes_len = 0;
 
 int main(void)
 {
-	uint8_t register byte;
+	Serial.begin(115200);
+	Serial.println("ready!");
 
 #if IS_ATTINY13
 	PCMSK = MASK_SDA;
@@ -328,7 +347,7 @@ int main(void)
 #endif
 	// DDRB |= LED;
 
-	uart_setup(); // Setup UART Tx pin as out
+	// uart_setup(); // Setup UART Tx pin as out
 
 #if IS_ATTINY13
 	wdt_enable(WDTO_15MS); // Set prescaler to 15ms
@@ -345,39 +364,36 @@ int main(void)
 		{
 			if (rw == 0)
 			{
-				while (1)
+				readback_bytes_len = i2c_get_bytes(readback_bytes, sizeof(readback_bytes));
+
+				if (readback_bytes_len > 0)
 				{
-					byte = i2c_get_byte();
-					if (status == SEQ_STOP)
-					{
-						cli();
-						break;
-					}
-					else
-					{
-						i2c_clk_keep();
+					i2c_clk_keep();
 
-						if (byte == 0xaa)
-						{
-							//LED_L();
-						}
-						else if (byte == 0x55)
-						{
-							//LED_H();
-						}
+					Serial.print("rb_len=");
+					Serial.println(readback_bytes_len);
+					Serial.flush();
 
-						i2c_clk_free();
-					}
+					// if (bytes[0] == 0xaa)
+					//{
+					//	//LED_L();
+					// }
+					// else if (bytes[0] == 0x55)
+					//{
+					//	//LED_H();
+					// }
+
+					i2c_clk_free();
 				}
 
+				cli();
 				LED_L();
 			}
 			else
 			{
 				LED_H();
 
-				uint8_t bytes[] = {0x55, 0x66, 0x77, 0xaa};
-				i2c_put_bytes(bytes, 4);
+				i2c_put_bytes(readback_bytes, readback_bytes_len);
 			}
 		}
 	}
