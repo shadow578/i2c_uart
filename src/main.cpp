@@ -1,4 +1,6 @@
-#include <Arduino.h>
+#include <string.h> // memcpy
+#include <avr/io.h>
+#include <avr/wdt.h>
 
 // on arduino nano test:
 // - SDA on D12
@@ -12,6 +14,11 @@
 #define I2C_BUFFER_SIZE 4
 
 #include "i2c_sw_target.hpp"
+
+// is this the arduino nano test environment?
+#if defined(__AVR_ATmega328P__)
+#include <Arduino.h>
+#endif
 
 #define LED _BV(PB5) // D13 / LED_BUILTIN
 void led_high() { PORTB |= LED; }
@@ -28,8 +35,10 @@ void on_i2c_event(const bool read, uint8_t *data, uint8_t &len)
 		memcpy(data, int_data, int_data_len);
 		len = int_data_len;
 
+#if defined(__AVR_ATmega328P__)
 		Serial.print("[R] len=");
 		Serial.println(int_data_len);
+#endif
 
 		led_high();
 	}
@@ -39,8 +48,10 @@ void on_i2c_event(const bool read, uint8_t *data, uint8_t &len)
 		memcpy(data, int_data, len);
 		int_data_len = len;
 
+#if defined(__AVR_ATmega328P__)
 		Serial.print("[W] len=");
 		Serial.println(int_data_len);
+#endif
 
 		led_low();
 	}
@@ -48,8 +59,10 @@ void on_i2c_event(const bool read, uint8_t *data, uint8_t &len)
 
 int main(void)
 {
+#if defined(__AVR_ATmega328P__)
 	Serial.begin(115200);
 	Serial.println("ready!");
+#endif
 
 	DDRB |= LED;
 

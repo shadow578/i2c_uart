@@ -1,3 +1,12 @@
+/**
+ * basic software i2c target implementation for the attiny13 and similar avr microcontrollers.
+ * uses no hardware i2c peripheral or interrupts, just bit-banging on two GPIO pins.
+ * 
+ * memory usage:
+ * - RAM: 1 + I2C_BUFFER_SIZE bytes
+ * - Flash: ~600 bytes
+ */
+
 #pragma once
 #include <stdint.h>
 #include <avr/io.h>
@@ -49,13 +58,15 @@ __always_inline void on_i2c_event(const bool read, uint8_t *data, uint8_t &len);
  * called repeatedly while waiting for i2c start condition.
  * this function should not block, as otherwise i2c communication may be interrupted.
  */
-__always_inline __weak void on_i2c_idle() {}
+__always_inline void on_i2c_idle();
+__weak void on_i2c_idle() {}
 
 /**
  * i2c watchdog reset function
  * called regularly to reset the watchdog timer.
  */
-__always_inline __weak void i2c_wdt_reset() { wdt_reset(); }
+__always_inline void i2c_wdt_reset();
+__weak void i2c_wdt_reset() { wdt_reset(); }
 
 namespace i2c_sw_target_internal
 {
