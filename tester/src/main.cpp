@@ -56,6 +56,7 @@ void setup()
     Serial.begin(115200);
 
     Wire.begin();
+    Wire.setClock(50000); // 100kHz I2C clock
 }
 
 void test_readback(uint8_t *bytes, uint8_t len)
@@ -96,14 +97,41 @@ void test_readback(uint8_t *bytes, uint8_t len)
     Serial.println();
 
     Serial.print("Received: ");
+    bool mismatch = false;
+    uint8_t i = 0;
     while (Wire.available())
     {
-        Serial.print(Wire.read(), HEX);
+        uint8_t b = Wire.read();
+        Serial.print(b, HEX);
         Serial.print(" ");
+
+        if (i < len && b != bytes[i])
+        {
+            mismatch = true;
+        }
+
+        i++;
     }
     Serial.println();
 
+    if (mismatch)
+    {
+        Serial.println("Mismatch!");
+    }
+    else
+    {
+        Serial.println("Match!");
+    }
+
     Serial.println("\n --  --");
+}
+
+void randomize_bytes(uint8_t *bytes, uint8_t len)
+{
+    for (uint8_t i = 0; i < len; ++i)
+    {
+        bytes[i] = random(0, 256);
+    }
 }
 
 void loop()
@@ -112,9 +140,14 @@ void loop()
 
     if (found)
     {
-        uint8_t bytes[4] = {0x55, 0x66, 0xaa, 0xbb};
+        uint8_t bytes[4];
+        randomize_bytes(bytes, 4);
         test_readback(bytes, 1);
+
+        randomize_bytes(bytes, 4);
         test_readback(bytes, 2);
+
+        randomize_bytes(bytes, 4);
         test_readback(bytes, 4);
     }
 
