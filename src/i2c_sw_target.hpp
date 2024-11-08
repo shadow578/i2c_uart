@@ -135,6 +135,33 @@ namespace i2c_sw_target_internal
     }
 
     /**
+     * start clock stretching. 
+     * @note assumes that SCL=0 with a pending read at the time of calling, so 
+     * first waits for SCL=1 then SCL=0 before stretching.
+     */
+    __always_inline void start_clock_stretching()
+    {
+      while (!read_scl()) // wait until SCL=1
+        ;
+      while (read_scl()) // wait until SCL=0
+        ;
+
+      scl_low();
+    }
+
+    /**
+     * stop clock stretching.
+     * @note waits for SCL=1 before returning
+     */
+    __always_inline void stop_clock_stretching()
+    {
+      scl_high(); // release SCL
+
+      while (!read_scl()) // wait until SCL=1
+        ;
+    }
+
+    /**
      * internal read byte from i2c bus
      * @return the byte read from the bus. only valid if status is not Stop
      * @note updates status to Stop if stop condition is detected
@@ -375,11 +402,15 @@ namespace i2c_sw_target_internal
         {
           if (is_read)
           {
+            // stretch clock while processing the request. 
+            // SCL=0 at this point due to ACK in detect_address
+            start_clock_stretching();
+            
             // read from target to controller
-            scl_low();
             uint8_t len = sizeof(buffer);
             on_i2c_event(/*is_read*/ true, buffer, len);
-            scl_high();
+
+            stop_clock_stretching();
 
             if (len > 0)
             {
@@ -392,9 +423,13 @@ namespace i2c_sw_target_internal
             uint8_t len = get_bytes(buffer, sizeof(buffer));
             if (len > 0)
             {
-              scl_low();
+              // stretch clock while processing the request.
+              // SCL=0 at this point due to ACK in get_bytes
+              //start_clock_stretching();
+
               on_i2c_event(/*is_read*/ false, buffer, len);
-              scl_high();
+              
+              //stop_clock_stretching();
             }
           }
         }
